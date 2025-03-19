@@ -74,6 +74,7 @@ const Quiz = ({ questions }: { questions: QuizQuestion[] }) => {
       <div className='relative w-full max-w-[900px] aspect-[3/2] mb-4'>
         <Image
           loading='eager'
+          decoding='sync'
           src={currentQuestion.image}
           alt={currentQuestion.question}
           className="rounded-lg shadow-md"
