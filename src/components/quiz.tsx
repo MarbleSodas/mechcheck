@@ -73,6 +73,7 @@ const Quiz = ({ questions }: { questions: QuizQuestion[] }) => {
       <h2 className="text-2xl font-semibold text-gray-100 mb-4">{currentQuestion.question}</h2>
       <div className='relative w-full max-w-[900px] aspect-[3/2] mb-4'>
         <Image
+          loading='eager'
           src={currentQuestion.image}
           alt={currentQuestion.question}
           className="rounded-lg shadow-md"
