@@ -5,98 +5,98 @@ import { QuizQuestion } from "@/types";
 const quizData = [
   {
     question: "You are the Dark Knight where should you go? (if multiple answers, pick top one)",
-    image: "/images/grid-1.png",
+    image: "/images/lala-positioning/grid-1.png",
     options: ["?", "?", "?", "?"],
     correctAnswerIndex: 0,
     answerButtonPositions: [{ x: "39%", y: "32%" }, { x: "42%", y: "53%" }, { x: "42%", y: "61%" }, { x: "72%", y: "76%" }]
   },
   {
     question: "You are the Dark Knight where should you go? (if multiple answers, pick top one)",
-    image: "/images/grid-2.png",
+    image: "/images/lala-positioning/grid-2.png",
     options: ["?", "?", "?", "?"],
     correctAnswerIndex: 0,
     answerButtonPositions: [{ x: "39%", y: "32%" }, { x: "42%", y: "53%" }, { x: "42%", y: "61%" }, { x: "72%", y: "76%" }]
   },
   {
     question: "You are the Dark Knight where should you go? (if multiple answers, pick top one)",
-    image: "/images/grid-3.png",
+    image: "/images/lala-positioning/grid-3.png",
     options: ["?", "?", "?", "?"],
     correctAnswerIndex: 1,
     answerButtonPositions: [{ x: "39%", y: "32%" }, { x: "42%", y: "53%" }, { x: "42%", y: "61%" }, { x: "72%", y: "76%" }]
   },
   {
     question: "You are the Dark Knight where should you go? (if multiple answers, pick top one)",
-    image: "/images/grid-4.png",
+    image: "/images/lala-positioning/grid-4.png",
     options: ["?", "?", "?", "?"],
     correctAnswerIndex: 0,
     answerButtonPositions: [{ x: "39%", y: "32%" }, { x: "42%", y: "53%" }, { x: "42%", y: "61%" }, { x: "72%", y: "76%" }]
   },
   {
     question: "You are the Dark Knight where should you go? (if multiple answers, pick top one)",
-    image: "/images/grid-5.png",
+    image: "/images/lala-positioning/grid-5.png",
     options: ["?", "?", "?", "?"],
     correctAnswerIndex: 0,
     answerButtonPositions: [{ x: "39%", y: "32%" }, { x: "42%", y: "53%" }, { x: "42%", y: "61%" }, { x: "72%", y: "76%" }]
   },
   {
     question: "You are the Dark Knight where should you go? (if multiple answers, pick top one)",
-    image: "/images/grid-6.png",
+    image: "/images/lala-positioning/grid-6.png",
     options: ["?", "?", "?", "?"],
     correctAnswerIndex: 1,
     answerButtonPositions: [{ x: "39%", y: "32%" }, { x: "42%", y: "53%" }, { x: "42%", y: "61%" }, { x: "72%", y: "76%" }]
   },
   {
     question: "You are the Dark Knight where should you go? (if multiple answers, pick top one)",
-    image: "/images/grid-7.png",
+    image: "/images/lala-positioning/grid-7.png",
     options: ["?", "?", "?", "?"],
     correctAnswerIndex: 2,
     answerButtonPositions: [{ x: "39%", y: "32%" }, { x: "42%", y: "53%" }, { x: "42%", y: "61%" }, { x: "72%", y: "76%" }]
   },
   {
     question: "You are the Dark Knight where should you go? (if multiple answers, pick top one)",
-    image: "/images/grid-8.png",
+    image: "/images/lala-positioning/grid-8.png",
     options: ["?", "?", "?", "?"],
     correctAnswerIndex: 2,
     answerButtonPositions: [{ x: "39%", y: "32%" }, { x: "42%", y: "53%" }, { x: "42%", y: "61%" }, { x: "72%", y: "76%" }]
   },
   {
     question: "You are the Dark Knight where should you go? (if multiple answers, pick top one)",
-    image: "/images/grid-9.png",
+    image: "/images/lala-positioning/grid-9.png",
     options: ["?", "?", "?", "?"],
     correctAnswerIndex: 2,
     answerButtonPositions: [{ x: "39%", y: "32%" }, { x: "42%", y: "53%" }, { x: "42%", y: "61%" }, { x: "72%", y: "76%" }]
   },
   {
     question: "You are the Dark Knight where should you go? (if multiple answers, pick top one)",
-    image: "/images/grid-10.png",
+    image: "/images/lala-positioning/grid-10.png",
     options: ["?", "?", "?", "?"],
     correctAnswerIndex: 2,
     answerButtonPositions: [{ x: "39%", y: "32%" }, { x: "42%", y: "53%" }, { x: "42%", y: "61%" }, { x: "72%", y: "76%" }]
   },
   {
     question: "You are the Dark Knight where should you go? (if multiple answers, pick top one)",
-    image: "/images/grid-11.png",
+    image: "/images/lala-positioning/grid-11.png",
     options: ["?", "?", "?", "?"],
     correctAnswerIndex: 2,
     answerButtonPositions: [{ x: "39%", y: "32%" }, { x: "42%", y: "53%" }, { x: "42%", y: "61%" }, { x: "72%", y: "76%" }]
   },
   {
     question: "You are the Dark Knight where should you go? (if multiple answers, pick top one)",
-    image: "/images/grid-12.png",
+    image: "/images/lala-positioning/grid-12.png",
     options: ["?", "?", "?", "?"],
     correctAnswerIndex: 3,
     answerButtonPositions: [{ x: "39%", y: "32%" }, { x: "42%", y: "53%" }, { x: "42%", y: "61%" }, { x: "72%", y: "76%" }]
   },
   {
     question: "You are the Dark Knight where should you go? (if multiple answers, pick top one)",
-    image: "/images/grid-13.png",
+    image: "/images/lala-positioning/grid-13.png",
     options: ["?", "?", "?", "?"],
     correctAnswerIndex: 3,
     answerButtonPositions: [{ x: "39%", y: "32%" }, { x: "42%", y: "53%" }, { x: "42%", y: "61%" }, { x: "72%", y: "76%" }]
   },
   {
     question: "You are the Dark Knight where should you go? (if multiple answers, pick top one)",
-    image: "/images/grid-14.png",
+    image: "/images/lala-positioning/grid-14.png",
     options: ["?", "?", "?", "?"],
     correctAnswerIndex: 3,
     answerButtonPositions: [{ x: "39%", y: "32%" }, { x: "42%", y: "53%" }, { x: "42%", y: "61%" }, { x: "72%", y: "76%" }]

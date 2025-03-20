@@ -17,6 +17,11 @@ const quizzes: Quiz[] = [
     description: 'Test the positions for grid mech',
     href: '/quizzes/aloalo-math',
   },
+  {
+    title: 'Self Direction Quiz',
+    description: 'Test your position relative to where you want to go',
+    href: '/quizzes/self-direction',
+  },
 ];
 
 const Dashboard = () => {
