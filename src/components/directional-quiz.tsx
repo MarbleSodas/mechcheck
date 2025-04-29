@@ -1,9 +1,9 @@
 "use client"
 import { DirectionalQuizQuestion } from '@/types';
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { motion } from 'framer-motion';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useResponsivePositioning } from '@/hooks/useResponsivePositioning';
@@ -17,7 +17,18 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
   const [feedback, setFeedback] = useState<string | null>(null);
   const [shouldRotate, setShouldRotate] = useState(false);
   const [rotationAngle, setRotationAngle] = useState(0);
+
+  // New state variables for drag rotation
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragRotation, setDragRotation] = useState(0);
+  const [selectedDirection, setSelectedDirection] = useState<number | null>(null);
+  const [showSubmitButton, setShowSubmitButton] = useState(false);
+
   const imageContainerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLDivElement>(null);
+
+  // Track the center point of the image for angle calculations
+  const [centerPoint, setCenterPoint] = useState({ x: 0, y: 0 });
 
   const currentQuestion = questions[currentQuestionIndex];
 
@@ -27,27 +38,170 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
     currentQuestion.answerButtonPositions
   );
 
+  // Calculate the center point of the image when the component mounts or the window resizes
+  useEffect(() => {
+    const updateCenterPoint = () => {
+      if (imageRef.current) {
+        const rect = imageRef.current.getBoundingClientRect();
+        setCenterPoint({
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2
+        });
+      }
+    };
+
+    // Initial update
+    const timeoutId = setTimeout(updateCenterPoint, 500); // Delay to ensure the component is fully rendered
+
+    // Add resize listener
+    window.addEventListener('resize', updateCenterPoint);
+
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', updateCenterPoint);
+    };
+  }, [currentQuestionIndex]);
+
+  // Reset drag state when question changes
+  useEffect(() => {
+    setDragRotation(0);
+    setSelectedDirection(null);
+    setShowSubmitButton(false);
+  }, [currentQuestionIndex]);
+
+  // Map direction names to angles (used in getCorrectRotationAngle and angleToDirectionIndex)
+  const DIRECTION_ANGLES = {
+    "front": 0,
+    "right": 90,
+    "back": 180,
+    "left": 270
+  };
+
+  // Map angles to direction indices
+  const angleToDirectionIndex = () => {
+    // Get the normalized angle between 0 and 360
+    const normalizedAngle = ((dragRotation % 360) + 360) % 360;
+
+    // Define the angle ranges for each direction
+    const ranges = [
+      { min: 315, max: 360, direction: "front" },
+      { min: 0, max: 45, direction: "front" },
+      { min: 45, max: 135, direction: "right" },
+      { min: 135, max: 225, direction: "back" },
+      { min: 225, max: 315, direction: "left" }
+    ];
+
+    // Find the matching direction
+    const matchedRange = ranges.find(range =>
+      normalizedAngle >= range.min && normalizedAngle < range.max
+    );
+
+    if (matchedRange) {
+      // Find the index of this direction in the options array
+      const directionIndex = currentQuestion.options.findIndex(
+        option => option.toLowerCase() === matchedRange.direction
+      );
+
+      console.log(`Dragged to angle: ${normalizedAngle}°, Snapped to: ${matchedRange.direction} (${directionIndex})`);
+
+      return directionIndex;
+    }
+
+    return null;
+  };
+
+  // Calculate angle between two points
+  const calculateAngle = (x: number, y: number) => {
+    const deltaX = x - centerPoint.x;
+    const deltaY = y - centerPoint.y;
+
+    // Calculate angle in radians and convert to degrees
+    let angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+
+    // Adjust angle to start from the top (0 degrees) and go clockwise
+    angle = 90 - angle;
+    if (angle < 0) angle += 360;
+
+    return angle;
+  };
+
   // Helper function to get the absolute rotation angle for the correct answer
   const getCorrectRotationAngle = (correctIndex: number) => {
-    // Map the positions to directions: Front=0°, Right=90°, Back=180°, Left=270°
-
     // Get the option name for the correct answer
     const correctOption = currentQuestion.options[correctIndex].toLowerCase();
 
-    // Map direction names to angles
-    const directionToAngle: { [key: string]: number } = {
-      "front": 0,
-      "right": 90,
-      "back": 180,
-      "left": 270
-    };
-
     // Get the angle for the correct direction
-    const correctAngle = directionToAngle[correctOption] || 0;
+    const correctAngle = DIRECTION_ANGLES[correctOption as keyof typeof DIRECTION_ANGLES] || 0;
 
     console.log(`Correct: ${correctOption}, Rotation to: ${correctAngle}°`);
 
     return correctAngle;
+  };
+
+  // Handle mouse/touch events for drag rotation
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    if (userAnswers[currentQuestionIndex] !== null) return; // Prevent dragging if already answered
+
+    setIsDragging(true);
+    setShowSubmitButton(false);
+    setSelectedDirection(null);
+
+    // Prevent default behavior to avoid text selection during drag
+    e.preventDefault();
+
+    // Add event listeners for move and end events
+    if ('touches' in e) {
+      document.addEventListener('touchmove', handleDragMove);
+      document.addEventListener('touchend', handleDragEnd);
+    } else {
+      document.addEventListener('mousemove', handleDragMove);
+      document.addEventListener('mouseup', handleDragEnd);
+    }
+  };
+
+  const handleDragMove = (e: MouseEvent | TouchEvent) => {
+    if (!isDragging) return;
+
+    // Get the current pointer position
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    // Calculate the angle between the center and the current pointer position
+    const angle = calculateAngle(clientX, clientY);
+
+    // Update the rotation angle
+    setDragRotation(angle);
+  };
+
+  const handleDragEnd = () => {
+    if (!isDragging) return;
+
+    setIsDragging(false);
+
+    // Remove event listeners
+    document.removeEventListener('mousemove', handleDragMove);
+    document.removeEventListener('mouseup', handleDragEnd);
+    document.removeEventListener('touchmove', handleDragMove);
+    document.removeEventListener('touchend', handleDragEnd);
+
+    // Find the closest direction based on the current angle
+    const directionIndex = angleToDirectionIndex();
+
+    if (directionIndex !== null) {
+      // Set the selected direction
+      setSelectedDirection(directionIndex);
+
+      // Show the submit button
+      setShowSubmitButton(true);
+    }
+  };
+
+  // Handle submit button click
+  const handleSubmit = () => {
+    if (selectedDirection === null) return;
+
+    // Use the selected direction as the answer
+    handleAnswerSelection(selectedDirection);
   };
 
   const handleAnswerSelection = (answerIndex: number) => {
@@ -72,6 +226,9 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
       setRotationAngle(angle);
       setShouldRotate(true);
     }
+
+    // Hide the submit button after answering
+    setShowSubmitButton(false);
   };
 
   const goToNextQuestion = () => {
@@ -84,6 +241,9 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
       setFeedback(null); // Reset feedback for the next question
       setShouldRotate(false); // Reset rotation state
       setRotationAngle(0); // Reset rotation angle
+      setDragRotation(0); // Reset drag rotation
+      setSelectedDirection(null); // Reset selected direction
+      setShowSubmitButton(false); // Hide submit button
     } else {
       setQuizCompleted(true);
     }
@@ -106,6 +266,9 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
     setFeedback(null);
     setShouldRotate(false);
     setRotationAngle(0);
+    setDragRotation(0);
+    setSelectedDirection(null);
+    setShowSubmitButton(false);
   };
 
   if (quizCompleted) {
@@ -270,26 +433,31 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="relative w-full max-w-[500px] h-[48vh] mb-2"
+        className="relative w-full max-w-[500px] h-[48vh] my-4"
         ref={imageContainerRef}
       >
         <div className="relative w-full h-full rounded-xl overflow-hidden shadow-lg border border-white/10 bg-black/20">
           <motion.div
+            ref={imageRef}
             initial={{ rotate: 0 }}
             animate={{
-              rotate: shouldRotate ? rotationAngle : 0
+              rotate: shouldRotate ? rotationAngle : dragRotation
             }}
             transition={{
-              type: "spring",
+              type: shouldRotate ? "spring" : "tween",
               stiffness: 50,
               damping: 10,
-              duration: 1,
-              delay: 0.3 // Add a small delay to let the user see the feedback first
+              duration: shouldRotate ? 1 : 0.1,
+              delay: shouldRotate ? 0.3 : 0 // Add a small delay to let the user see the feedback first
             }}
             style={{
-              transformOrigin: 'center center' // Ensure rotation happens from the center
+              transformOrigin: 'center center', // Ensure rotation happens from the center
+              cursor: userAnswers[currentQuestionIndex] === null ? 'grab' : 'default'
             }}
             className="w-full h-full relative"
+            onMouseDown={userAnswers[currentQuestionIndex] === null ? handleDragStart : undefined}
+            onTouchStart={userAnswers[currentQuestionIndex] === null ? handleDragStart : undefined}
+            drag={false} // Disable framer-motion's built-in drag
           >
             <Image
               loading='eager'
@@ -300,11 +468,40 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
               fill
               style={{
                 zIndex: 0,
-                padding: '8px'
+                padding: '8px',
+                pointerEvents: 'none' // Prevent image from capturing pointer events
               }}
+              draggable={false} // Prevent default drag behavior
             />
           </motion.div>
         </div>
+
+        {/* Visual indicator for selected direction */}
+        {selectedDirection !== null && userAnswers[currentQuestionIndex] === null && (
+          <div className="absolute top-2 left-2 bg-primary/80 text-white px-3 py-1 rounded-lg text-sm font-medium">
+            Selected: {currentQuestion.options[selectedDirection]}
+          </div>
+        )}
+
+        {/* Submit button */}
+        {showSubmitButton && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute bottom-4 left-0 right-0 flex justify-center"
+          >
+            <Button
+              onClick={handleSubmit}
+              className={cn(
+                "px-6 py-2 h-auto text-sm font-medium",
+                "bg-primary hover:bg-primary/80 text-white",
+                "shadow-md hover:shadow-lg transition-all duration-300"
+              )}
+            >
+              Submit Answer
+            </Button>
+          </motion.div>
+        )}
 
         {/* Answer buttons - positioned around the image */}
         <div className="absolute top-0 left-0 w-full h-full">
