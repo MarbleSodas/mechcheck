@@ -192,6 +192,18 @@ const quizData = [
 export default function SelfDirectionQuiz() {
   // Shuffle the quiz data and limit to 5 questions
   const shuffledQuizData = shuffleArray(quizData).slice(0, 5);
+
+  // Debug log to see which questions were selected
+  console.log('Selected Quiz Questions:', shuffledQuizData.map((q, index) => ({
+    questionNumber: index + 1,
+    status: q.status,
+    image: q.image,
+    direction: q.direction,
+    options: q.options,
+    correctAnswerIndex: q.correctAnswerIndex,
+    correctAnswer: q.options[q.correctAnswerIndex]
+  })));
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 flex flex-col items-center justify-center px-2 py-1">
       <div className="w-full max-w-7xl mx-auto">

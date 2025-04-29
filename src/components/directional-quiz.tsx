@@ -3,10 +3,9 @@ import { DirectionalQuizQuestion } from '@/types';
 import React, { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import { motion, useMotionValue, useTransform } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { useResponsivePositioning } from '@/hooks/useResponsivePositioning';
 import { ArrowLeft, ArrowRight, Home } from '@/components/icons';
 import Link from 'next/link';
 
@@ -18,73 +17,32 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
   const [shouldRotate, setShouldRotate] = useState(false);
   const [rotationAngle, setRotationAngle] = useState(0);
 
-  // New state variables for drag rotation
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragRotation, setDragRotation] = useState(0);
+  // State variables for direction selection and rotation
   const [selectedDirection, setSelectedDirection] = useState<number | null>(null);
-  const [showSubmitButton, setShowSubmitButton] = useState(false);
+  const [currentRotation, setCurrentRotation] = useState(0);
 
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLDivElement>(null);
 
-  // Track the center point of the image for angle calculations
-  const [centerPoint, setCenterPoint] = useState({ x: 0, y: 0 });
-
   const currentQuestion = questions[currentQuestionIndex];
 
-  // Get responsive button positions based on container size
-  const responsivePositions = useResponsivePositioning(
-    imageContainerRef,
-    currentQuestion.answerButtonPositions
-  );
-
-  // Calculate the center point of the image when the component mounts or the window resizes
+  // Debug log for current question
   useEffect(() => {
-    const updateCenterPoint = () => {
-      if (imageContainerRef.current) {
-        // Use the container's center instead of the image itself
-        // This ensures we're using the visible center of the container
-        const rect = imageContainerRef.current.getBoundingClientRect();
-        const newCenterPoint = {
-          x: rect.left + rect.width / 2,
-          y: rect.top + rect.height / 2
-        };
+    console.log('Current Question Data:', {
+      index: currentQuestionIndex,
+      question: currentQuestion.question,
+      options: currentQuestion.options,
+      correctAnswerIndex: currentQuestion.correctAnswerIndex,
+      correctAnswer: currentQuestion.options[currentQuestion.correctAnswerIndex],
+      image: currentQuestion.image,
+      direction: currentQuestion.direction
+    });
+  }, [currentQuestionIndex, currentQuestion]);
 
-        setCenterPoint(newCenterPoint);
-        console.log("Center point updated:", newCenterPoint.x, newCenterPoint.y);
-      }
-    };
-
-    // Initial update with multiple attempts to ensure it works
-    // The delays help ensure the component is fully rendered and positioned
-    const timeoutId1 = setTimeout(updateCenterPoint, 100);
-    const timeoutId2 = setTimeout(updateCenterPoint, 500);
-    const timeoutId3 = setTimeout(updateCenterPoint, 1000);
-
-    // Add resize listener to update when window size changes
-    window.addEventListener('resize', updateCenterPoint);
-
-    // Add scroll listener to update when page scrolls
-    window.addEventListener('scroll', updateCenterPoint);
-
-    // Add visibility change listener to update when tab becomes visible
-    document.addEventListener('visibilitychange', updateCenterPoint);
-
-    return () => {
-      clearTimeout(timeoutId1);
-      clearTimeout(timeoutId2);
-      clearTimeout(timeoutId3);
-      window.removeEventListener('resize', updateCenterPoint);
-      window.removeEventListener('scroll', updateCenterPoint);
-      document.removeEventListener('visibilitychange', updateCenterPoint);
-    };
-  }, [currentQuestionIndex]);
-
-  // Reset drag state when question changes
+  // Reset state when question changes
   useEffect(() => {
-    setDragRotation(0);
+    setCurrentRotation(0);
     setSelectedDirection(null);
-    setShowSubmitButton(false);
   }, [currentQuestionIndex]);
 
   // Map direction names to angles (used in getCorrectRotationAngle and angleToDirectionIndex)
@@ -95,62 +53,38 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
     "left": 270
   };
 
-  // Map angles to direction indices
-  const angleToDirectionIndex = (customAngle?: number) => {
-    // Get the normalized angle between 0 and 360
-    const normalizedAngle = ((customAngle !== undefined ? customAngle : dragRotation) % 360 + 360) % 360;
+  // Helper function to calculate the shortest rotation path
+  const calculateShortestRotation = (currentAngle: number, targetAngle: number): number => {
+    // Get the base angles (0-360)
+    const current = ((currentAngle % 360) + 360) % 360;
+    const target = ((targetAngle % 360) + 360) % 360;
 
-    // Define the angle ranges for each direction
-    const ranges = [
-      { min: 315, max: 360, direction: "front" },
-      { min: 0, max: 45, direction: "front" },
-      { min: 45, max: 135, direction: "right" },
-      { min: 135, max: 225, direction: "back" },
-      { min: 225, max: 315, direction: "left" }
-    ];
+    // Calculate both possible directions
+    const clockwise = target >= current ? target - current : target + 360 - current;
+    const counterclockwise = current >= target ? current - target : current + 360 - target;
 
-    // Find the matching direction
-    const matchedRange = ranges.find(range =>
-      normalizedAngle >= range.min && normalizedAngle < range.max
-    );
+    // Debug log for rotation calculation
+    console.log('Rotation Calculation:', {
+      currentAngle,
+      targetAngle,
+      normalizedCurrent: current,
+      normalizedTarget: target,
+      clockwiseDistance: clockwise,
+      counterclockwiseDistance: counterclockwise,
+      chosenPath: clockwise <= counterclockwise ? 'clockwise' : 'counterclockwise',
+      resultAngle: clockwise <= counterclockwise ? currentAngle + clockwise : currentAngle - counterclockwise
+    });
 
-    if (matchedRange) {
-      // Find the index of this direction in the options array
-      const directionIndex = currentQuestion.options.findIndex(
-        option => option.toLowerCase() === matchedRange.direction
-      );
-
-      if (customAngle === undefined) {
-        console.log(`Dragged to angle: ${normalizedAngle}°, Snapped to: ${matchedRange.direction} (${directionIndex})`);
-      }
-
-      return directionIndex;
+    // Choose the shortest path
+    if (clockwise <= counterclockwise) {
+      // Clockwise is shorter or equal
+      return currentAngle + clockwise;
+    } else {
+      // Counterclockwise is shorter
+      return currentAngle - counterclockwise;
     }
-
-    return null;
   };
 
-  // Calculate angle between two points
-  const calculateAngle = (x: number, y: number) => {
-    // Calculate deltas from center point
-    const deltaX = x - centerPoint.x;
-    const deltaY = y - centerPoint.y;
-
-    // Calculate angle in radians and convert to degrees
-    // Math.atan2 returns the angle in the range [-PI, PI]
-    let angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-
-    // Convert to 0-360 range (0 is right, 90 is down, 180 is left, 270 is up)
-    if (angle < 0) angle += 360;
-
-    // Adjust to match our direction system (0 is up, 90 is right, 180 is down, 270 is left)
-    // We need to rotate by 90 degrees counterclockwise to match our direction system
-    angle = (angle + 90) % 360;
-
-    console.log(`Cursor at (${x}, ${y}), Center at (${centerPoint.x}, ${centerPoint.y}), Angle: ${angle}°`);
-
-    return angle;
-  };
 
   // Helper function to get the absolute rotation angle for the correct answer
   const getCorrectRotationAngle = (correctIndex: number) => {
@@ -160,119 +94,27 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
     // Get the angle for the correct direction
     const correctAngle = DIRECTION_ANGLES[correctOption as keyof typeof DIRECTION_ANGLES] || 0;
 
-    console.log(`Correct: ${correctOption}, Rotation to: ${correctAngle}°`);
+    // Debug log for correct rotation angle
+    console.log('Correct Rotation Angle:', {
+      correctIndex,
+      correctOption,
+      mappedAngle: correctAngle,
+      directionAnglesMap: DIRECTION_ANGLES
+    });
 
     return correctAngle;
-  };
-
-  // Handle mouse/touch events for drag rotation
-  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
-    if (userAnswers[currentQuestionIndex] !== null) return; // Prevent dragging if already answered
-
-    console.log("Drag start event:", e.type);
-
-    // Update center point on drag start to ensure it's accurate
-    if (imageContainerRef.current) {
-      const rect = imageContainerRef.current.getBoundingClientRect();
-      const newCenterPoint = {
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2
-      };
-      setCenterPoint(newCenterPoint);
-      console.log("Center point on drag start:", newCenterPoint.x, newCenterPoint.y);
-    }
-
-    setIsDragging(true);
-    setShowSubmitButton(false);
-    setSelectedDirection(null);
-
-    // Prevent default behavior to avoid text selection during drag
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Add event listeners for move and end events
-    if ('touches' in e) {
-      document.addEventListener('touchmove', handleDragMove, { passive: false });
-      document.addEventListener('touchend', handleDragEnd);
-      document.addEventListener('touchcancel', handleDragEnd);
-    } else {
-      document.addEventListener('mousemove', handleDragMove);
-      document.addEventListener('mouseup', handleDragEnd);
-      document.addEventListener('mouseleave', handleDragEnd);
-    }
-
-    // Initial drag move to set the rotation based on the starting position
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-
-    // Calculate initial angle but don't set it yet - we'll wait for the first move
-    // This prevents a sudden jump when starting the drag
-    calculateAngle(clientX, clientY);
-  };
-
-  const handleDragMove = (e: MouseEvent | TouchEvent) => {
-    if (!isDragging) return;
-
-    // Prevent default to stop scrolling on touch devices
-    e.preventDefault();
-
-    // Get the current pointer position
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-
-    // Calculate the angle between the center and the current pointer position
-    const angle = calculateAngle(clientX, clientY);
-
-    // Update the rotation angle immediately for smooth following
-    setDragRotation(angle);
-
-    // Find the closest direction based on the current angle
-    const directionIndex = angleToDirectionIndex(angle);
-
-    // Update the selected direction during drag for visual feedback
-    if (directionIndex !== null && directionIndex !== selectedDirection) {
-      setSelectedDirection(directionIndex);
-    }
-  };
-
-  const handleDragEnd = () => {
-    if (!isDragging) return;
-
-    console.log("Drag end event");
-
-    setIsDragging(false);
-
-    // Remove all event listeners
-    document.removeEventListener('mousemove', handleDragMove);
-    document.removeEventListener('mouseup', handleDragEnd);
-    document.removeEventListener('mouseleave', handleDragEnd);
-    document.removeEventListener('touchmove', handleDragMove);
-    document.removeEventListener('touchend', handleDragEnd);
-    document.removeEventListener('touchcancel', handleDragEnd);
-
-    // Find the closest direction based on the current angle
-    const directionIndex = angleToDirectionIndex();
-    console.log("Direction index on drag end:", directionIndex);
-
-    if (directionIndex !== null) {
-      // Set the selected direction
-      setSelectedDirection(directionIndex);
-
-      // Get the angle for the selected direction for snapping
-      const directionName = currentQuestion.options[directionIndex].toLowerCase();
-      const snapAngle = DIRECTION_ANGLES[directionName as keyof typeof DIRECTION_ANGLES] || 0;
-
-      // Snap to the direction angle with a spring animation
-      setDragRotation(snapAngle);
-
-      // Show the submit button
-      setShowSubmitButton(true);
-    }
   };
 
   // Handle submit button click
   const handleSubmit = () => {
     if (selectedDirection === null) return;
+
+    console.log('Submit Button Clicked:', {
+      selectedDirection,
+      selectedOption: currentQuestion.options[selectedDirection],
+      correctAnswerIndex: currentQuestion.correctAnswerIndex,
+      correctOption: currentQuestion.options[currentQuestion.correctAnswerIndex]
+    });
 
     // Use the selected direction as the answer
     handleAnswerSelection(selectedDirection);
@@ -285,51 +127,97 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
 
     const correctIndex = currentQuestion.correctAnswerIndex;
 
+    console.log('Answer Selection:', {
+      questionIndex: currentQuestionIndex,
+      userSelectedIndex: answerIndex,
+      userSelectedOption: currentQuestion.options[answerIndex],
+      correctIndex: correctIndex,
+      correctOption: currentQuestion.options[correctIndex],
+      isCorrect: answerIndex === correctIndex,
+      currentRotation
+    });
+
     if (answerIndex === correctIndex) {
       setFeedback("Correct!");
       // No need to rotate if already correct
       setShouldRotate(false);
       setRotationAngle(0);
+      console.log('Correct answer selected, no rotation needed');
     } else {
       setFeedback("Incorrect.");
 
       // Get the absolute rotation angle for the correct direction
-      const angle = getCorrectRotationAngle(correctIndex);
+      const correctAngle = getCorrectRotationAngle(correctIndex);
+
+      // Calculate the shortest rotation path from current rotation to correct angle
+      const shortestRotation = calculateShortestRotation(currentRotation, correctAngle);
+
+      console.log('Incorrect answer, rotating to show correct answer:', {
+        correctAngle,
+        shortestRotation,
+        fromCurrentRotation: currentRotation
+      });
 
       // Set the rotation angle and trigger the rotation
-      setRotationAngle(angle);
+      setRotationAngle(shortestRotation);
       setShouldRotate(true);
     }
-
-    // Hide the submit button after answering
-    setShowSubmitButton(false);
   };
 
   const goToNextQuestion = () => {
     if (userAnswers[currentQuestionIndex] === null) {
+      console.log('Cannot proceed: No answer selected for current question');
       return; // Prevent moving to the next question without answering
     }
+
+    console.log('Moving to next question:', {
+      currentIndex: currentQuestionIndex,
+      totalQuestions: questions.length,
+      userAnswers,
+      isLastQuestion: currentQuestionIndex === questions.length - 1
+    });
 
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       setFeedback(null); // Reset feedback for the next question
       setShouldRotate(false); // Reset rotation state
       setRotationAngle(0); // Reset rotation angle
-      setDragRotation(0); // Reset drag rotation
+      setCurrentRotation(0); // Reset rotation
       setSelectedDirection(null); // Reset selected direction
-      setShowSubmitButton(false); // Hide submit button
+      console.log('State reset for next question');
     } else {
       setQuizCompleted(true);
+      console.log('Quiz completed, calculating final score');
     }
   };
 
   const calculateScore = () => {
     let score = 0;
+    const scoreDetails = [];
+
     for (let i = 0; i < questions.length; i++) {
-      if (userAnswers[i] === questions[i].correctAnswerIndex) {
+      const isCorrect = userAnswers[i] === questions[i].correctAnswerIndex;
+      if (isCorrect) {
         score++;
       }
+
+      scoreDetails.push({
+        questionIndex: i,
+        userAnswer: userAnswers[i],
+        userAnswerText: questions[i].options[userAnswers[i]],
+        correctAnswerIndex: questions[i].correctAnswerIndex,
+        correctAnswerText: questions[i].options[questions[i].correctAnswerIndex],
+        isCorrect
+      });
     }
+
+    console.log('Quiz Score Calculation:', {
+      totalQuestions: questions.length,
+      correctAnswers: score,
+      percentage: Math.round((score / questions.length) * 100),
+      scoreDetails
+    });
+
     return score;
   };
 
@@ -340,9 +228,8 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
     setFeedback(null);
     setShouldRotate(false);
     setRotationAngle(0);
-    setDragRotation(0);
+    setCurrentRotation(0);
     setSelectedDirection(null);
-    setShowSubmitButton(false);
   };
 
   if (quizCompleted) {
@@ -507,129 +394,61 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="relative w-full max-w-[500px] h-[48vh] my-4"
+        className="relative w-full max-w-[500px] h-[48vh] my-2 mb-14"
         ref={imageContainerRef}
       >
         <div
           className="relative w-full h-full rounded-xl overflow-hidden shadow-lg border border-white/10 bg-black/20"
           style={{ touchAction: 'none' }} // Prevent browser touch actions
         >
-          {/* Transparent overlay for drag interaction */}
-          {userAnswers[currentQuestionIndex] === null && (
-            <div
-              className="absolute inset-0 z-30 cursor-grab active:cursor-grabbing"
-              onMouseDown={handleDragStart}
-              onTouchStart={handleDragStart}
-              style={{ touchAction: 'none' }}
-            />
-          )}
-
           <motion.div
             ref={imageRef}
             initial={{ rotate: 0 }}
             animate={{
-              rotate: shouldRotate ? rotationAngle : dragRotation
+              rotate: shouldRotate ? rotationAngle : currentRotation
             }}
             transition={{
               type: shouldRotate ? "spring" : "tween",
               stiffness: 50,
               damping: 10,
-              duration: shouldRotate ? 1 : 0.05, // Faster updates for smoother cursor following
-              delay: shouldRotate ? 0.3 : 0 // Add a small delay to let the user see the feedback first
+              duration: shouldRotate ? 1 : 0.3,
+              delay: shouldRotate ? 0.3 : 0
             }}
             style={{
               transformOrigin: 'center center', // Ensure rotation happens from the center
-              zIndex: 10, // Keep below the overlay but above other elements
-              touchAction: 'none' // Prevent browser touch actions
+              zIndex: 10,
+              touchAction: 'none'
             }}
             className="w-full h-full relative"
-            drag={false} // Disable framer-motion's built-in drag
           >
-            <Image
-              loading='eager'
-              decoding='sync'
-              src={currentQuestion.image}
-              alt={currentQuestion.question}
-              className="object-contain"
-              fill
-              sizes="(max-width: 768px) 100vw, 500px" // Add sizes to prevent warning
-              style={{
-                zIndex: 0,
-                padding: '8px',
-                pointerEvents: 'none', // Prevent image from capturing pointer events
-                touchAction: 'none' // Prevent browser touch actions
-              }}
-              draggable={false} // Prevent default drag behavior
-            />
-
-            {/* Center point indicator for debugging */}
-            {process.env.NODE_ENV === 'development' && (
-              <div
-                className="absolute w-4 h-4 rounded-full bg-red-500 z-50"
+            <div className="absolute inset-[70px]">
+              <Image
+                loading='eager'
+                decoding='sync'
+                src={currentQuestion.image}
+                alt={currentQuestion.question}
+                className="object-contain"
+                fill
+                sizes="(max-width: 768px) 100vw, 500px"
                 style={{
-                  left: 'calc(50% - 8px)',
-                  top: 'calc(50% - 8px)',
-                  pointerEvents: 'none'
+                  zIndex: 0,
+                  pointerEvents: 'none',
+                  touchAction: 'none'
                 }}
+                draggable={false}
               />
-            )}
+            </div>
+
+
           </motion.div>
-
-          {/* Drag instructions - shown when not answered and not dragging */}
-          {userAnswers[currentQuestionIndex] === null && !isDragging && !showSubmitButton && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="bg-black/40 backdrop-blur-sm px-4 py-2 rounded-lg text-white text-sm font-medium">
-                Click and drag to rotate
-              </div>
-            </div>
-          )}
-
-          {/* Direction indicator overlay - shows during drag */}
-          {isDragging && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-20 h-20 rounded-full bg-primary/20 backdrop-blur-sm flex items-center justify-center">
-                <motion.div
-                  animate={{ rotate: dragRotation }}
-                  className="w-12 h-12 flex items-center justify-center"
-                >
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 4L12 20" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-                    <path d="M12 4L7 9" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-                    <path d="M12 4L17 9" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
-                </motion.div>
-              </div>
-            </div>
-          )}
-
-          {/* Cursor position tracker - invisible but helps with debugging */}
-          {isDragging && (
-            <div
-              className="absolute w-full h-full pointer-events-none z-40"
-              style={{ touchAction: 'none' }}
-            />
-          )}
         </div>
 
-        {/* Visual indicator for selected direction */}
-        {selectedDirection !== null && userAnswers[currentQuestionIndex] === null && !isDragging && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute top-2 left-0 right-0 flex justify-center"
-          >
-            <div className="bg-primary/80 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-lg">
-              Selected: {currentQuestion.options[selectedDirection]}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Submit button */}
-        {showSubmitButton && (
+        {/* Submit button - shown when a direction is selected */}
+        {selectedDirection !== null && userAnswers[currentQuestionIndex] === null && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="absolute bottom-4 left-0 right-0 flex justify-center"
+            className="absolute -bottom-12 left-0 right-0 flex justify-center"
           >
             <Button
               onClick={handleSubmit}
@@ -644,30 +463,83 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
           </motion.div>
         )}
 
-        {/* Answer buttons - positioned around the image */}
+        {/* Direction buttons - positioned at the edges of the image container */}
         <div className="absolute top-0 left-0 w-full h-full">
           {currentQuestion.options.map((option, index) => {
-            // Use responsive positions with fallback to original positions
-            const position = responsivePositions[index] ? {
-              x: responsivePositions[index].x,
-              y: responsivePositions[index].y,
-              scale: responsivePositions[index].scale
-            } : {
-              x: currentQuestion.answerButtonPositions[index].x,
-              y: currentQuestion.answerButtonPositions[index].y,
-              scale: 1
-            };
+            const directionName = option.toLowerCase();
+
+            // Define button position and caret based on direction
+            let buttonPosition = "";
+            let caretSvg = null;
+
+            if (directionName === "front") {
+              buttonPosition = "top-0 left-[60px] right-[60px] h-[50px] rounded-t-xl";
+              caretSvg = (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                  <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+              );
+            } else if (directionName === "right") {
+              buttonPosition = "top-[60px] bottom-[60px] right-0 w-[50px] rounded-r-xl";
+              caretSvg = (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              );
+            } else if (directionName === "back") {
+              buttonPosition = "bottom-0 left-[60px] right-[60px] h-[50px] rounded-b-xl";
+              caretSvg = (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              );
+            } else if (directionName === "left") {
+              buttonPosition = "top-[60px] bottom-[60px] left-0 w-[50px] rounded-l-xl";
+              caretSvg = (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                  <polyline points="15 6 9 12 15 18"></polyline>
+                </svg>
+              );
+            }
 
             return (
               <button
                 key={index}
-                onClick={() => handleAnswerSelection(index)}
+                onClick={() => {
+                  // Get the angle for this direction
+                  const directionAngle = DIRECTION_ANGLES[directionName as keyof typeof DIRECTION_ANGLES] || 0;
+
+                  console.log('Direction Button Clicked:', {
+                    buttonIndex: index,
+                    directionName,
+                    directionAngle,
+                    currentRotation
+                  });
+
+                  // Calculate the shortest rotation path
+                  const shortestRotation = calculateShortestRotation(currentRotation, directionAngle);
+
+                  // Set the rotation angle
+                  setCurrentRotation(shortestRotation);
+
+                  // Set the selected direction
+                  setSelectedDirection(index);
+
+                  console.log('Direction selected:', {
+                    selectedIndex: index,
+                    selectedDirection: directionName,
+                    newRotation: shortestRotation
+                  });
+                }}
                 disabled={userAnswers[currentQuestionIndex] !== null}
                 className={cn(
-                  "absolute z-10 px-4 py-2 rounded-lg font-medium transition-colors duration-200",
-                  "border-2 shadow-md min-w-[70px] min-h-[50px] text-lg",
+                  "absolute z-10 flex items-center justify-center transition-all duration-200",
+                  "border-2 shadow-md",
+                  buttonPosition,
                   userAnswers[currentQuestionIndex] === null
-                    ? "bg-primary/80 backdrop-blur-sm hover:bg-primary hover:border-white hover:shadow-lg hover:shadow-primary/30 text-white border-primary/50"
+                    ? selectedDirection === index
+                      ? "bg-primary text-white border-white shadow-lg shadow-primary/30 scale-[1.02]"
+                      : "bg-primary/70 backdrop-blur-sm hover:bg-primary/90 hover:border-white/80 hover:shadow-lg hover:scale-[1.02] text-white border-primary/30"
                     : userAnswers[currentQuestionIndex] === index
                       ? index === currentQuestion.correctAnswerIndex
                         ? "bg-green-500/80 text-white border-green-400"
@@ -676,14 +548,11 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
                         ? "bg-green-500/80 text-white border-green-400"
                         : "bg-white/10 text-white/50 border-white/10"
                 )}
-                style={{
-                  left: `calc(${position.x})`,
-                  top: `calc(${position.y})`,
-                  transform: 'translate(-50%, -50%)', // Center the button at the position
-                  fontSize: `${Math.max(0.75, position.scale)}rem`
-                }}
               >
-                {option}
+                <div className="flex flex-col items-center justify-center">
+                  {caretSvg}
+                  <span className="text-sm font-medium mt-1">{option}</span>
+                </div>
               </button>
             );
           })}
@@ -696,7 +565,7 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className={cn(
-            "mb-1.5 px-4 py-1.5 rounded-lg font-medium text-center text-xs sm:text-sm",
+            "fixed bottom-20 px-4 py-1.5 rounded-lg font-medium text-center text-xs sm:text-sm",
             feedback === "Correct!"
               ? "bg-green-500/20 text-green-400 border border-green-500/30"
               : "bg-red-500/20 text-red-400 border border-red-500/30"
