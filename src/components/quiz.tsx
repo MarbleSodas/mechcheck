@@ -7,6 +7,8 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useResponsivePositioning } from '@/hooks/useResponsivePositioning';
+import { Home } from '@/components/icons';
+import Link from 'next/link';
 
 const Quiz = ({ questions }: { questions: QuizQuestion[] }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -76,6 +78,19 @@ const Quiz = ({ questions }: { questions: QuizQuestion[] }) => {
         transition={{ duration: 0.5 }}
         className="flex flex-col items-center justify-center p-2 sm:p-4 max-w-md mx-auto h-[100vh] overflow-hidden"
       >
+        {/* Back button - positioned at the top left */}
+        <div className="absolute top-4 left-4 z-10">
+          <Link href="/">
+            <Button
+              variant="ghost"
+              className="bg-black/30 hover:bg-black/50 rounded-full p-2 w-10 h-10 flex items-center justify-center"
+              aria-label="Back to Home"
+            >
+              <Home width={24} height={24} color="#FFFFFF" />
+            </Button>
+          </Link>
+        </div>
+
         <Card className={cn(
           "w-full bg-white/5 backdrop-blur-lg",
           "border border-white/10",
@@ -90,18 +105,33 @@ const Quiz = ({ questions }: { questions: QuizQuestion[] }) => {
             <p className="text-base sm:text-lg text-gray-200">
               Your score: <span className="font-bold">{score} / {questions.length}</span>
             </p>
-            <Button
-              onClick={resetQuiz}
-              className={cn(
-                "w-full bg-primary hover:bg-primary/80",
-                "text-white font-medium",
-                "shadow-md hover:shadow-lg",
-                "transition-all duration-300",
-                "py-1.5 sm:py-2 text-xs sm:text-sm"
-              )}
-            >
-              Try Again
-            </Button>
+            <div className="flex flex-col sm:flex-row w-full gap-2 sm:gap-3">
+              <Button
+                onClick={resetQuiz}
+                className={cn(
+                  "flex-1 bg-primary hover:bg-primary/80",
+                  "text-white font-medium",
+                  "shadow-md hover:shadow-lg",
+                  "transition-all duration-300",
+                  "py-1.5 sm:py-2 text-xs sm:text-sm"
+                )}
+              >
+                Try Again
+              </Button>
+              <Link href="/" className="flex-1">
+                <Button
+                  className={cn(
+                    "w-full bg-white/10 hover:bg-white/20",
+                    "text-white font-medium",
+                    "shadow-md hover:shadow-lg",
+                    "transition-all duration-300",
+                    "py-1.5 sm:py-2 text-xs sm:text-sm"
+                  )}
+                >
+                  Home
+                </Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </motion.div>
@@ -110,6 +140,19 @@ const Quiz = ({ questions }: { questions: QuizQuestion[] }) => {
 
   return (
     <div className="container mx-auto p-1 sm:p-2 flex flex-col items-center justify-center h-[100vh] overflow-hidden">
+      {/* Back button - positioned at the top left */}
+      <div className="absolute top-4 left-4 z-10">
+        <Link href="/">
+          <Button
+            variant="ghost"
+            className="bg-black/30 hover:bg-black/50 rounded-full p-2 w-10 h-10 flex items-center justify-center"
+            aria-label="Back to Home"
+          >
+            <Home width={24} height={24} color="#FFFFFF" />
+          </Button>
+        </Link>
+      </div>
+
       {/* Progress bar */}
       <div className="w-full max-w-[900px] mb-1 sm:mb-2">
         <div className="w-full h-1 sm:h-2 bg-white/10 rounded-full overflow-hidden">

@@ -1,5 +1,6 @@
 import Quiz from "@/components/quiz";
 import { QuizQuestion } from "@/types";
+import { shuffleArray } from "@/lib/utils";
 
 // src/app/quizzes/aloalo-math/page.tsx
 const quizData = [
@@ -103,30 +104,12 @@ const quizData = [
   }
 ] as QuizQuestion[];
 
-// Use a seeded random function to avoid hydration errors
-function seededRandom(seed: number) {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
-
-function shuffleArray<T>(array: T[]): T[] {
-  // Use a fixed seed for server and client consistency
-  const seed = 42;
-  const newArray = [...array];
-
-  // Fisher-Yates shuffle with seeded random
-  for (let i = newArray.length - 1; i > 0; i--) {
-    const j = Math.floor(seededRandom(seed + i) * (i + 1));
-    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
-  }
-
-  return newArray;
-}
+// Using the shuffleArray function from utils.ts
 
 export default function AloaloMathQuiz() {
   const shuffledQuizData = shuffleArray(quizData);
   return (
-    <div className="h-screen bg-gradient-to-b from-gray-900 to-gray-800 flex flex-col items-center justify-center overflow-hidden">
+    <div className="h-screen bg-gradient-to-b from-gray-900 to-gray-800 flex flex-col items-center justify-center p-0 overflow-hidden">
       <div className="w-full h-full">
         <Quiz questions={shuffledQuizData} />
       </div>
