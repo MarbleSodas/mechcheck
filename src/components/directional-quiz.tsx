@@ -41,23 +41,31 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
   // Calculate the center point of the image when the component mounts or the window resizes
   useEffect(() => {
     const updateCenterPoint = () => {
-      if (imageRef.current) {
-        const rect = imageRef.current.getBoundingClientRect();
-        setCenterPoint({
+      if (imageContainerRef.current) {
+        // Use the container's center instead of the image itself
+        // This ensures we're using the visible center of the container
+        const rect = imageContainerRef.current.getBoundingClientRect();
+        const newCenterPoint = {
           x: rect.left + rect.width / 2,
           y: rect.top + rect.height / 2
-        });
-        console.log("Center point updated:", rect.left + rect.width / 2, rect.top + rect.height / 2);
+        };
+
+        setCenterPoint(newCenterPoint);
+        console.log("Center point updated:", newCenterPoint.x, newCenterPoint.y);
       }
     };
 
     // Initial update with multiple attempts to ensure it works
+    // The delays help ensure the component is fully rendered and positioned
     const timeoutId1 = setTimeout(updateCenterPoint, 100);
     const timeoutId2 = setTimeout(updateCenterPoint, 500);
     const timeoutId3 = setTimeout(updateCenterPoint, 1000);
 
-    // Add resize listener
+    // Add resize listener to update when window size changes
     window.addEventListener('resize', updateCenterPoint);
+
+    // Add scroll listener to update when page scrolls
+    window.addEventListener('scroll', updateCenterPoint);
 
     // Add visibility change listener to update when tab becomes visible
     document.addEventListener('visibilitychange', updateCenterPoint);
@@ -67,6 +75,7 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
       clearTimeout(timeoutId2);
       clearTimeout(timeoutId3);
       window.removeEventListener('resize', updateCenterPoint);
+      window.removeEventListener('scroll', updateCenterPoint);
       document.removeEventListener('visibilitychange', updateCenterPoint);
     };
   }, [currentQuestionIndex]);
@@ -123,15 +132,22 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
 
   // Calculate angle between two points
   const calculateAngle = (x: number, y: number) => {
+    // Calculate deltas from center point
     const deltaX = x - centerPoint.x;
     const deltaY = y - centerPoint.y;
 
     // Calculate angle in radians and convert to degrees
+    // Math.atan2 returns the angle in the range [-PI, PI]
     let angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
 
-    // Adjust angle to start from the top (0 degrees) and go clockwise
-    angle = 90 - angle;
+    // Convert to 0-360 range (0 is right, 90 is down, 180 is left, 270 is up)
     if (angle < 0) angle += 360;
+
+    // Adjust to match our direction system (0 is up, 90 is right, 180 is down, 270 is left)
+    // We need to rotate by 90 degrees counterclockwise to match our direction system
+    angle = (angle + 90) % 360;
+
+    console.log(`Cursor at (${x}, ${y}), Center at (${centerPoint.x}, ${centerPoint.y}), Angle: ${angle}°`);
 
     return angle;
   };
@@ -156,13 +172,14 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
     console.log("Drag start event:", e.type);
 
     // Update center point on drag start to ensure it's accurate
-    if (imageRef.current) {
-      const rect = imageRef.current.getBoundingClientRect();
-      setCenterPoint({
+    if (imageContainerRef.current) {
+      const rect = imageContainerRef.current.getBoundingClientRect();
+      const newCenterPoint = {
         x: rect.left + rect.width / 2,
         y: rect.top + rect.height / 2
-      });
-      console.log("Center point on drag start:", rect.left + rect.width / 2, rect.top + rect.height / 2);
+      };
+      setCenterPoint(newCenterPoint);
+      console.log("Center point on drag start:", newCenterPoint.x, newCenterPoint.y);
     }
 
     setIsDragging(true);
@@ -187,8 +204,10 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
     // Initial drag move to set the rotation based on the starting position
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    const initialAngle = calculateAngle(clientX, clientY);
-    setDragRotation(initialAngle);
+
+    // Calculate initial angle but don't set it yet - we'll wait for the first move
+    // This prevents a sudden jump when starting the drag
+    calculateAngle(clientX, clientY);
   };
 
   const handleDragMove = (e: MouseEvent | TouchEvent) => {
@@ -243,7 +262,7 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
       const directionName = currentQuestion.options[directionIndex].toLowerCase();
       const snapAngle = DIRECTION_ANGLES[directionName as keyof typeof DIRECTION_ANGLES] || 0;
 
-      // Snap to the direction angle
+      // Snap to the direction angle with a spring animation
       setDragRotation(snapAngle);
 
       // Show the submit button
@@ -498,7 +517,7 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
           {/* Transparent overlay for drag interaction */}
           {userAnswers[currentQuestionIndex] === null && (
             <div
-              className="absolute inset-0 z-30 cursor-grab"
+              className="absolute inset-0 z-30 cursor-grab active:cursor-grabbing"
               onMouseDown={handleDragStart}
               onTouchStart={handleDragStart}
               style={{ touchAction: 'none' }}
@@ -520,7 +539,7 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
             }}
             style={{
               transformOrigin: 'center center', // Ensure rotation happens from the center
-              zIndex: 20, // Increase z-index to ensure it's above other elements
+              zIndex: 10, // Keep below the overlay but above other elements
               touchAction: 'none' // Prevent browser touch actions
             }}
             className="w-full h-full relative"
@@ -542,6 +561,18 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
               }}
               draggable={false} // Prevent default drag behavior
             />
+
+            {/* Center point indicator for debugging */}
+            {process.env.NODE_ENV === 'development' && (
+              <div
+                className="absolute w-4 h-4 rounded-full bg-red-500 z-50"
+                style={{
+                  left: 'calc(50% - 8px)',
+                  top: 'calc(50% - 8px)',
+                  pointerEvents: 'none'
+                }}
+              />
+            )}
           </motion.div>
 
           {/* Drag instructions - shown when not answered and not dragging */}
@@ -556,12 +587,12 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
           {/* Direction indicator overlay - shows during drag */}
           {isDragging && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-16 h-16 rounded-full bg-primary/20 backdrop-blur-sm flex items-center justify-center">
+              <div className="w-20 h-20 rounded-full bg-primary/20 backdrop-blur-sm flex items-center justify-center">
                 <motion.div
                   animate={{ rotate: dragRotation }}
-                  className="w-10 h-10 flex items-center justify-center"
+                  className="w-12 h-12 flex items-center justify-center"
                 >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M12 4L12 20" stroke="white" strokeWidth="2" strokeLinecap="round"/>
                     <path d="M12 4L7 9" stroke="white" strokeWidth="2" strokeLinecap="round"/>
                     <path d="M12 4L17 9" stroke="white" strokeWidth="2" strokeLinecap="round"/>
@@ -569,6 +600,14 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
                 </motion.div>
               </div>
             </div>
+          )}
+
+          {/* Cursor position tracker - invisible but helps with debugging */}
+          {isDragging && (
+            <div
+              className="absolute w-full h-full pointer-events-none z-40"
+              style={{ touchAction: 'none' }}
+            />
           )}
         </div>
 
