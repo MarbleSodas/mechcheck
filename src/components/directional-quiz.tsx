@@ -47,18 +47,27 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
           x: rect.left + rect.width / 2,
           y: rect.top + rect.height / 2
         });
+        console.log("Center point updated:", rect.left + rect.width / 2, rect.top + rect.height / 2);
       }
     };
 
-    // Initial update
-    const timeoutId = setTimeout(updateCenterPoint, 500); // Delay to ensure the component is fully rendered
+    // Initial update with multiple attempts to ensure it works
+    const timeoutId1 = setTimeout(updateCenterPoint, 100);
+    const timeoutId2 = setTimeout(updateCenterPoint, 500);
+    const timeoutId3 = setTimeout(updateCenterPoint, 1000);
 
     // Add resize listener
     window.addEventListener('resize', updateCenterPoint);
 
+    // Add visibility change listener to update when tab becomes visible
+    document.addEventListener('visibilitychange', updateCenterPoint);
+
     return () => {
-      clearTimeout(timeoutId);
+      clearTimeout(timeoutId1);
+      clearTimeout(timeoutId2);
+      clearTimeout(timeoutId3);
       window.removeEventListener('resize', updateCenterPoint);
+      document.removeEventListener('visibilitychange', updateCenterPoint);
     };
   }, [currentQuestionIndex]);
 
@@ -78,9 +87,9 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
   };
 
   // Map angles to direction indices
-  const angleToDirectionIndex = () => {
+  const angleToDirectionIndex = (customAngle?: number) => {
     // Get the normalized angle between 0 and 360
-    const normalizedAngle = ((dragRotation % 360) + 360) % 360;
+    const normalizedAngle = ((customAngle !== undefined ? customAngle : dragRotation) % 360 + 360) % 360;
 
     // Define the angle ranges for each direction
     const ranges = [
@@ -102,7 +111,9 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
         option => option.toLowerCase() === matchedRange.direction
       );
 
-      console.log(`Dragged to angle: ${normalizedAngle}°, Snapped to: ${matchedRange.direction} (${directionIndex})`);
+      if (customAngle === undefined) {
+        console.log(`Dragged to angle: ${normalizedAngle}°, Snapped to: ${matchedRange.direction} (${directionIndex})`);
+      }
 
       return directionIndex;
     }
@@ -142,25 +153,49 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     if (userAnswers[currentQuestionIndex] !== null) return; // Prevent dragging if already answered
 
+    console.log("Drag start event:", e.type);
+
+    // Update center point on drag start to ensure it's accurate
+    if (imageRef.current) {
+      const rect = imageRef.current.getBoundingClientRect();
+      setCenterPoint({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+      });
+      console.log("Center point on drag start:", rect.left + rect.width / 2, rect.top + rect.height / 2);
+    }
+
     setIsDragging(true);
     setShowSubmitButton(false);
     setSelectedDirection(null);
 
     // Prevent default behavior to avoid text selection during drag
     e.preventDefault();
+    e.stopPropagation();
 
     // Add event listeners for move and end events
     if ('touches' in e) {
-      document.addEventListener('touchmove', handleDragMove);
+      document.addEventListener('touchmove', handleDragMove, { passive: false });
       document.addEventListener('touchend', handleDragEnd);
+      document.addEventListener('touchcancel', handleDragEnd);
     } else {
       document.addEventListener('mousemove', handleDragMove);
       document.addEventListener('mouseup', handleDragEnd);
+      document.addEventListener('mouseleave', handleDragEnd);
     }
+
+    // Initial drag move to set the rotation based on the starting position
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const initialAngle = calculateAngle(clientX, clientY);
+    setDragRotation(initialAngle);
   };
 
   const handleDragMove = (e: MouseEvent | TouchEvent) => {
     if (!isDragging) return;
+
+    // Prevent default to stop scrolling on touch devices
+    e.preventDefault();
 
     // Get the current pointer position
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
@@ -169,27 +204,47 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
     // Calculate the angle between the center and the current pointer position
     const angle = calculateAngle(clientX, clientY);
 
-    // Update the rotation angle
+    // Update the rotation angle immediately for smooth following
     setDragRotation(angle);
+
+    // Find the closest direction based on the current angle
+    const directionIndex = angleToDirectionIndex(angle);
+
+    // Update the selected direction during drag for visual feedback
+    if (directionIndex !== null && directionIndex !== selectedDirection) {
+      setSelectedDirection(directionIndex);
+    }
   };
 
   const handleDragEnd = () => {
     if (!isDragging) return;
 
+    console.log("Drag end event");
+
     setIsDragging(false);
 
-    // Remove event listeners
+    // Remove all event listeners
     document.removeEventListener('mousemove', handleDragMove);
     document.removeEventListener('mouseup', handleDragEnd);
+    document.removeEventListener('mouseleave', handleDragEnd);
     document.removeEventListener('touchmove', handleDragMove);
     document.removeEventListener('touchend', handleDragEnd);
+    document.removeEventListener('touchcancel', handleDragEnd);
 
     // Find the closest direction based on the current angle
     const directionIndex = angleToDirectionIndex();
+    console.log("Direction index on drag end:", directionIndex);
 
     if (directionIndex !== null) {
       // Set the selected direction
       setSelectedDirection(directionIndex);
+
+      // Get the angle for the selected direction for snapping
+      const directionName = currentQuestion.options[directionIndex].toLowerCase();
+      const snapAngle = DIRECTION_ANGLES[directionName as keyof typeof DIRECTION_ANGLES] || 0;
+
+      // Snap to the direction angle
+      setDragRotation(snapAngle);
 
       // Show the submit button
       setShowSubmitButton(true);
@@ -436,7 +491,20 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
         className="relative w-full max-w-[500px] h-[48vh] my-4"
         ref={imageContainerRef}
       >
-        <div className="relative w-full h-full rounded-xl overflow-hidden shadow-lg border border-white/10 bg-black/20">
+        <div
+          className="relative w-full h-full rounded-xl overflow-hidden shadow-lg border border-white/10 bg-black/20"
+          style={{ touchAction: 'none' }} // Prevent browser touch actions
+        >
+          {/* Transparent overlay for drag interaction */}
+          {userAnswers[currentQuestionIndex] === null && (
+            <div
+              className="absolute inset-0 z-30 cursor-grab"
+              onMouseDown={handleDragStart}
+              onTouchStart={handleDragStart}
+              style={{ touchAction: 'none' }}
+            />
+          )}
+
           <motion.div
             ref={imageRef}
             initial={{ rotate: 0 }}
@@ -447,16 +515,15 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
               type: shouldRotate ? "spring" : "tween",
               stiffness: 50,
               damping: 10,
-              duration: shouldRotate ? 1 : 0.1,
+              duration: shouldRotate ? 1 : 0.05, // Faster updates for smoother cursor following
               delay: shouldRotate ? 0.3 : 0 // Add a small delay to let the user see the feedback first
             }}
             style={{
               transformOrigin: 'center center', // Ensure rotation happens from the center
-              cursor: userAnswers[currentQuestionIndex] === null ? 'grab' : 'default'
+              zIndex: 20, // Increase z-index to ensure it's above other elements
+              touchAction: 'none' // Prevent browser touch actions
             }}
             className="w-full h-full relative"
-            onMouseDown={userAnswers[currentQuestionIndex] === null ? handleDragStart : undefined}
-            onTouchStart={userAnswers[currentQuestionIndex] === null ? handleDragStart : undefined}
             drag={false} // Disable framer-motion's built-in drag
           >
             <Image
@@ -466,21 +533,56 @@ const DirectionQuiz = ({ questions }: { questions: DirectionalQuizQuestion[] }) 
               alt={currentQuestion.question}
               className="object-contain"
               fill
+              sizes="(max-width: 768px) 100vw, 500px" // Add sizes to prevent warning
               style={{
                 zIndex: 0,
                 padding: '8px',
-                pointerEvents: 'none' // Prevent image from capturing pointer events
+                pointerEvents: 'none', // Prevent image from capturing pointer events
+                touchAction: 'none' // Prevent browser touch actions
               }}
               draggable={false} // Prevent default drag behavior
             />
           </motion.div>
+
+          {/* Drag instructions - shown when not answered and not dragging */}
+          {userAnswers[currentQuestionIndex] === null && !isDragging && !showSubmitButton && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="bg-black/40 backdrop-blur-sm px-4 py-2 rounded-lg text-white text-sm font-medium">
+                Click and drag to rotate
+              </div>
+            </div>
+          )}
+
+          {/* Direction indicator overlay - shows during drag */}
+          {isDragging && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-16 h-16 rounded-full bg-primary/20 backdrop-blur-sm flex items-center justify-center">
+                <motion.div
+                  animate={{ rotate: dragRotation }}
+                  className="w-10 h-10 flex items-center justify-center"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 4L12 20" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                    <path d="M12 4L7 9" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                    <path d="M12 4L17 9" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                </motion.div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Visual indicator for selected direction */}
-        {selectedDirection !== null && userAnswers[currentQuestionIndex] === null && (
-          <div className="absolute top-2 left-2 bg-primary/80 text-white px-3 py-1 rounded-lg text-sm font-medium">
-            Selected: {currentQuestion.options[selectedDirection]}
-          </div>
+        {selectedDirection !== null && userAnswers[currentQuestionIndex] === null && !isDragging && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute top-2 left-0 right-0 flex justify-center"
+          >
+            <div className="bg-primary/80 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-lg">
+              Selected: {currentQuestion.options[selectedDirection]}
+            </div>
+          </motion.div>
         )}
 
         {/* Submit button */}
